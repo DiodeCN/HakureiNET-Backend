@@ -1,5 +1,6 @@
 ## HakureiNET [(Preview Edition)](https://github.com/DiodeCN/HakureiNET-Backend)
 [我的新国内服务器博客！赣ICP备2023002720号](https://elmcose.cn/ "我的新国内服务器博客！赣ICP备2023002720号")
+
 ![license](https://img.shields.io/badge/license-AGPLv3.0-blue.svg)
 
 
