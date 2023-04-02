@@ -42,6 +42,7 @@ type ScheduledTask struct {
 
 // 其实这么多好像可以直接简写的（小声
 
+/*
 func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
 	message := string(p)
 	parts := strings.Split(message, "|")
@@ -121,6 +122,7 @@ func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
 		}
 	}(task, delay)
 }
+*/
 
 func main() {
 	// http.Handle("/", http.FileServer(http.Dir("./assests")))
@@ -260,7 +262,8 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 		parts := strings.Split(string(p), "|")
-		handleSpecialMessage(conn, messageType, p)
+
+		// handleSpecialMessage(conn, messageType, p)
 
 		/*
 			if len(parts) == 4 {
