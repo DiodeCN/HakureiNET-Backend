@@ -33,11 +33,12 @@ var Guanggan string
 var zaoyin string
 
 type ScheduledTask struct {
-	Command  string
-	Time     string
-	Days     []string
-	Id       string
-	Weekdays map[string]bool
+	Command       string
+	Time          string
+	Days          []string
+	Id            string
+	Weekdays      map[string]bool
+	ExecutedToday bool
 }
 
 var scheduledTasks []ScheduledTask
@@ -80,8 +81,9 @@ func handleUDP(conn *net.UDPConn) {
 	// 在这里添加一个新的 goroutine 来处理计划任务
 	go func() {
 		for {
-			for _, task := range scheduledTasks {
+			for i, task := range scheduledTasks {
 				if shouldExecuteTask(task) {
+					scheduledTasks[i].ExecutedToday = true
 					mapMutex.Lock()
 					addr, ok := idToAddrMap[task.Id]
 					mapMutex.Unlock()
@@ -97,7 +99,18 @@ func handleUDP(conn *net.UDPConn) {
 					}
 				}
 			}
-			// time.Sleep(1 * time.Minute)
+			time.Sleep(1 * time.Second)
+		}
+	}()
+	go func() {
+		for {
+			now := time.Now()
+			if now.Hour() == 0 && now.Minute() == 0 {
+				for i := range scheduledTasks {
+					scheduledTasks[i].ExecutedToday = false
+				}
+			}
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
@@ -368,6 +381,9 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func shouldExecuteTask(task ScheduledTask) bool {
+	if task.ExecutedToday {
+		return false
+	}
 	now := time.Now()
 	weekday := now.Weekday().String()
 	if !task.Weekdays[weekday] {
