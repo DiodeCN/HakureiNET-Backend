@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -169,6 +170,46 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
+
+		parts := strings.Split(string(p), "|")
+		if len(parts) == 3 {
+
+			// 提取指令、id和时长
+			command := parts[0]
+			durationStr := parts[1]
+			id := parts[2]
+			log.Println("已新建让", id, "执行", command, "的计时器，", "剩余时长", durationStr, "分钟。")
+
+			// 将时长字符串转换为整数
+			durationMinutes, err := strconv.Atoi(durationStr)
+			if err != nil {
+				log.Println("转化错误", err)
+				continue
+			}
+
+			// 创建计时器
+			timer := time.NewTimer(time.Duration(durationMinutes) * time.Minute)
+
+			go func(id string) {
+				<-timer.C
+
+				mapMutex.Lock()
+				addr, ok := idToAddrMap[id]
+				mapMutex.Unlock()
+
+				if ok {
+					message := command
+					_, err = udpConn.WriteToUDP([]byte(message), addr)
+					if err != nil {
+						log.Println("Error sending UDP message:", err)
+					}
+				} else {
+					log.Println("Id not found in the map")
+				}
+			}(id)
+
+		}
+
 		if strings.Contains(string(p), "&open;") {
 			log.Println("打开开关")
 
