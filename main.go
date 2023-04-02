@@ -31,6 +31,7 @@ var Shidu string
 var Wendu string
 var Guanggan string
 var zaoyin string
+var SetHour string
 
 type ScheduledTask struct {
 	Command       string
@@ -222,11 +223,13 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(string(p), "|")
 
 		// handleSpecialMessage(conn, messageType, p)
-		if len(parts) == 4 {
+
+		if len(parts) == 5 && strings.Contains(string(p), "|") {
 			command := parts[0]
-			time := parts[1]
-			days := strings.Split(parts[2], ",")
-			id := parts[3]
+			hour := parts[1]
+			minute := parts[2]
+			days := strings.Split(parts[3], ",")
+			id := parts[4]
 
 			weekdays := map[string]bool{}
 			for _, day := range days {
@@ -235,7 +238,7 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 
 			task := ScheduledTask{
 				Command:  command,
-				Time:     time,
+				Time:     hour + ":" + minute,
 				Days:     days,
 				Id:       id,
 				Weekdays: weekdays,
@@ -282,7 +285,7 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 			}(id)
 
 		}
-		if len(parts) != 4 && len(parts) != 3 {
+		if len(parts) != 4 && len(parts) != 5 {
 			if strings.Contains(string(p), "&open;") {
 				log.Println("打开开关")
 
@@ -396,5 +399,5 @@ func shouldExecuteTask(task ScheduledTask) bool {
 		return false
 	}
 
-	return now.Hour() == taskTime.Hour() && now.Minute() == taskTime.Minute()
+	return now.Hour() == taskTime.Hour() // && now.Minute() == taskTime.Minute()
 }
