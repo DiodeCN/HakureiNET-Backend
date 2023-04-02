@@ -42,6 +42,86 @@ type ScheduledTask struct {
 
 // 其实这么多好像可以直接简写的（小声
 
+func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
+	message := string(p)
+	parts := strings.Split(message, "|")
+
+	if len(parts) != 4 {
+		log.Println("Invalid special message format")
+		return
+	}
+
+	// 提取指令、时间和id
+	command := parts[0]
+	timeStr := parts[1]
+	days := strings.Split(parts[2], ",")
+	id := parts[3]
+
+	// 创建一个新的ScheduledTask
+	task := ScheduledTask{
+		Command:  command,
+		Time:     timeStr,
+		Days:     days,
+		Id:       id,
+		Weekdays: make(map[string]bool),
+	}
+
+	for _, day := range days {
+		task.Weekdays[day] = true
+	}
+
+	// 计算定时器的延时
+	now := time.Now()
+	hourMinute := strings.Split(timeStr, ":")
+	hour, err := strconv.Atoi(hourMinute[0])
+	if err != nil {
+		log.Println("Error parsing hour:", err)
+		return
+	}
+	minute, err := strconv.Atoi(hourMinute[1])
+	if err != nil {
+		log.Println("Error parsing minute:", err)
+		return
+	}
+
+	nextTrigger := now
+	nextTrigger = nextTrigger.Truncate(time.Minute).Add(time.Hour * time.Duration(hour)).Add(time.Minute * time.Duration(minute))
+
+	for !task.Weekdays[nextTrigger.Weekday().String()] {
+		nextTrigger = nextTrigger.Add(time.Hour * 24)
+	}
+
+	delay := nextTrigger.Sub(now)
+	log.Println("Next trigger:", nextTrigger)
+
+	// 启动一个goroutine来处理ScheduledTask
+	go func(task ScheduledTask, delay time.Duration) {
+		timer := time.NewTimer(delay)
+		ticker := time.NewTicker(24 * time.Hour * 7) // 每7天重置一次定时器
+
+		for {
+			select {
+			case <-timer.C:
+				// 执行任务
+				mapMutex.Lock()
+				addr, ok := idToAddrMap[task.Id]
+				mapMutex.Unlock()
+
+				if ok {
+					_, err = udpConn.WriteToUDP([]byte(task.Command), addr)
+					if err != nil {
+						log.Println("Error sending UDP message:", err)
+					}
+				} else {
+					log.Println("Id not found in the map")
+				}
+			case <-ticker.C:
+				timer.Reset(delay) // 重置定时器
+			}
+		}
+	}(task, delay)
+}
+
 func main() {
 	// http.Handle("/", http.FileServer(http.Dir("./assests")))
 	//http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./assests")))) // 发布前端
@@ -180,6 +260,7 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 		parts := strings.Split(string(p), "|")
+		handleSpecialMessage(conn, messageType, p)
 
 		/*
 			if len(parts) == 4 {
