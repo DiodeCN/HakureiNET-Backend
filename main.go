@@ -40,92 +40,9 @@ type ScheduledTask struct {
 	Weekdays map[string]bool
 }
 
+var scheduledTasks []ScheduledTask
+
 // 其实这么多好像可以直接简写的（小声
-
-//这一部分我是真不知道怎么跑起来，或者说怎么跑不起来，
-//其实我还有个不用计时器的办法
-//只要udp收到消息，就检查现在的分钟数，如果分钟数符合tcp传来的定时要求，就发送指令
-/*
-func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
-	message := string(p)
-	parts := strings.Split(message, "|")
-
-	if len(parts) != 4 {
-		log.Println("Invalid special message format")
-		return
-	}
-
-	// 提取指令、时间和id
-	command := parts[0]
-	timeStr := parts[1]
-	days := strings.Split(parts[2], ",")
-	id := parts[3]
-
-	// 创建一个新ScheduledTask
-	task := ScheduledTask{
-		Command:  command,
-		Time:     timeStr,
-		Days:     days,
-		Id:       id,
-		Weekdays: make(map[string]bool),
-	}
-
-	for _, day := range days {
-		task.Weekdays[day] = true
-	}
-
-	// 计算定时器延时
-	now := time.Now()
-	hourMinute := strings.Split(timeStr, ":")
-	hour, err := strconv.Atoi(hourMinute[0])
-	if err != nil {
-		log.Println("Error parsing hour:", err)
-		return
-	}
-	minute, err := strconv.Atoi(hourMinute[1])
-	if err != nil {
-		log.Println("Error parsing minute:", err)
-		return
-	}
-
-	nextTrigger := now
-	nextTrigger = nextTrigger.Truncate(time.Minute).Add(time.Hour * time.Duration(hour)).Add(time.Minute * time.Duration(minute))
-
-	for !task.Weekdays[nextTrigger.Weekday().String()] {
-		nextTrigger = nextTrigger.Add(time.Hour * 24)
-	}
-
-	delay := nextTrigger.Sub(now)
-	log.Println("Next trigger:", nextTrigger)
-
-	// 启动一个goroutine来处理ScheduledTask
-	go func(task ScheduledTask, delay time.Duration) {
-		timer := time.NewTimer(delay)
-		ticker := time.NewTicker(24 * time.Hour * 7) // 每7天重置一次
-
-		for {
-			select {
-			case <-timer.C:
-				// 执行任务
-				mapMutex.Lock()
-				addr, ok := idToAddrMap[task.Id]
-				mapMutex.Unlock()
-
-				if ok {
-					_, err = udpConn.WriteToUDP([]byte(task.Command), addr)
-					if err != nil {
-						log.Println("Error sending UDP message:", err)
-					}
-				} else {
-					log.Println("Id not found in the map")
-				}
-			case <-ticker.C:
-				timer.Reset(delay) // 重置定时器
-			}
-		}
-	}(task, delay)
-}
-*/
 
 func main() {
 	// http.Handle("/", http.FileServer(http.Dir("./assests")))
@@ -160,6 +77,30 @@ func main() {
 var Keys string
 
 func handleUDP(conn *net.UDPConn) {
+	// 在这里添加一个新的 goroutine 来处理计划任务
+	go func() {
+		for {
+			for _, task := range scheduledTasks {
+				if shouldExecuteTask(task) {
+					mapMutex.Lock()
+					addr, ok := idToAddrMap[task.Id]
+					mapMutex.Unlock()
+
+					if ok {
+						var taskErr error // 添加一个新的 error 变量
+						_, taskErr = udpConn.WriteToUDP([]byte(task.Command), addr)
+						if taskErr != nil {
+							log.Println("Error sending UDP message:", taskErr)
+						}
+					} else {
+						log.Println("Id not found in the map")
+					}
+				}
+			}
+			// time.Sleep(1 * time.Minute)
+		}
+	}()
+
 	for {
 		var data [1024]byte
 		n, addr, err := conn.ReadFromUDP(data[:]) // 接收数据
@@ -220,6 +161,7 @@ func handleUDP(conn *net.UDPConn) {
 		}
 
 	}
+
 }
 
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -267,11 +209,27 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(string(p), "|")
 
 		// handleSpecialMessage(conn, messageType, p)
+		if len(parts) == 4 {
+			command := parts[0]
+			time := parts[1]
+			days := strings.Split(parts[2], ",")
+			id := parts[3]
 
-		/*
-			if len(parts) == 4 {
+			weekdays := map[string]bool{}
+			for _, day := range days {
+				weekdays[day] = true
 			}
-		*/
+
+			task := ScheduledTask{
+				Command:  command,
+				Time:     time,
+				Days:     days,
+				Id:       id,
+				Weekdays: weekdays,
+			}
+
+			scheduledTasks = append(scheduledTasks, task)
+		}
 
 		if len(parts) == 3 {
 
@@ -311,99 +269,116 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 			}(id)
 
 		}
+		if len(parts) != 4 && len(parts) != 3 {
+			if strings.Contains(string(p), "&open;") {
+				log.Println("打开开关")
 
-		if strings.Contains(string(p), "&open;") {
-			log.Println("打开开关")
+				// 提取id
+				id := strings.Replace(string(p), "&open;", "", -1)
 
-			// 提取id
-			id := strings.Replace(string(p), "&open;", "", -1)
+				mapMutex.Lock()
+				addr, ok := idToAddrMap[id]
+				mapMutex.Unlock()
 
-			mapMutex.Lock()
-			addr, ok := idToAddrMap[id]
-			mapMutex.Unlock()
-
-			if ok {
-				_, err = udpConn.WriteToUDP([]byte(p), addr)
-				if err != nil {
-					log.Println("Error sending UDP message:", err)
+				if ok {
+					_, err = udpConn.WriteToUDP([]byte(p), addr)
+					if err != nil {
+						log.Println("Error sending UDP message:", err)
+					}
+				} else {
+					log.Println("Id not found in the map")
 				}
-			} else {
-				log.Println("Id not found in the map")
 			}
-		}
 
-		// 和上面的差不多
-		if strings.Contains(string(p), "&shut;") {
-			log.Println("关闭开关")
+			// 和上面的差不多
+			if strings.Contains(string(p), "&shut;") {
+				log.Println("关闭开关")
 
-			id := strings.Replace(string(p), "&shut;", "", -1)
+				id := strings.Replace(string(p), "&shut;", "", -1)
 
-			mapMutex.Lock()
-			addr, ok := idToAddrMap[id]
-			mapMutex.Unlock()
+				mapMutex.Lock()
+				addr, ok := idToAddrMap[id]
+				mapMutex.Unlock()
 
-			if ok {
-				_, err = udpConn.WriteToUDP([]byte(p), addr)
-				if err != nil {
-					log.Println("Error sending UDP message:", err)
+				if ok {
+					_, err = udpConn.WriteToUDP([]byte(p), addr)
+					if err != nil {
+						log.Println("Error sending UDP message:", err)
+					}
+				} else {
+					log.Println("Id not found in the map")
 				}
-			} else {
-				log.Println("Id not found in the map")
 			}
-		}
 
-		if strings.Contains(string(p), "&*") && strings.Contains(string(p), "/") {
+			if strings.Contains(string(p), "&*") && strings.Contains(string(p), "/") {
 
-			parts := strings.Split(string(p), "/")
-			value := parts[0][2:] // 把&*删去
-			id := parts[1]        // 取id
+				parts := strings.Split(string(p), "/")
+				value := parts[0][2:] // 把&*删去
+				id := parts[1]        // 取id
 
-			log.Println("风扇电压：", value)
-			mapMutex.Lock()
-			addr, ok := idToAddrMap[id]
-			mapMutex.Unlock()
+				log.Println("风扇电压：", value)
+				mapMutex.Lock()
+				addr, ok := idToAddrMap[id]
+				mapMutex.Unlock()
 
-			if ok {
-				message := "8964" + value
-				/* 没办法，那个掌控板我也不知道怎么搞得
-				string转数字只能用那个int模块。那个int指令吧
-				一有字符或者汉字这种就罢工。我也查不明白怎么回事
-				直接拿数字做个判断加减得了（乐
-				*/
-				_, err = udpConn.WriteToUDP([]byte(message), addr)
-				if err != nil {
-					log.Println("Error sending UDP message:", err)
+				if ok {
+					message := "8964" + value
+					/* 没办法，那个掌控板我也不知道怎么搞得
+					string转数字只能用那个int模块。那个int指令吧
+					一有字符或者汉字这种就罢工。我也查不明白怎么回事
+					直接拿数字做个判断加减得了（乐
+					*/
+					_, err = udpConn.WriteToUDP([]byte(message), addr)
+					if err != nil {
+						log.Println("Error sending UDP message:", err)
+					}
+				} else {
+					log.Println("Id not found in the map")
 				}
-			} else {
-				log.Println("Id not found in the map")
-			}
-		}
-
-		if strings.Contains(string(p), "&askforstate;") {
-
-			// 从map中获取温度、湿度、光感和噪音数据
-			Shidu = environmentData["shidu"]
-			Wendu = environmentData["wendu"]
-			Guanggan = environmentData["guanggan"]
-			zaoyin = environmentData["zaoyin"]
-
-			message := Shidu + "/" + Wendu + "/" + Guanggan + "/" + zaoyin
-
-			if message == "///" {
-				log.Println("还没有绑定过掌控板！")
-			} else {
-				log.Println("新状态上传成功", message)
 			}
 
-			if err := conn.WriteMessage(messageType, []byte(message)); err != nil {
-				log.Println(err)
-				return
+			if strings.Contains(string(p), "&askforstate;") {
+
+				// 从map中获取温度、湿度、光感和噪音数据
+				Shidu = environmentData["shidu"]
+				Wendu = environmentData["wendu"]
+				Guanggan = environmentData["guanggan"]
+				zaoyin = environmentData["zaoyin"]
+
+				message := Shidu + "/" + Wendu + "/" + Guanggan + "/" + zaoyin
+
+				if message == "///" {
+					log.Println("还没有绑定过掌控板！")
+				} else {
+					log.Println("新状态上传成功", message)
+				}
+
+				if err := conn.WriteMessage(messageType, []byte(message)); err != nil {
+					log.Println(err)
+					return
+				}
+
+				if err != nil {
+					log.Println("Error sending TCP message:", err)
+				}
 			}
 
-			if err != nil {
-				log.Println("Error sending TCP message:", err)
-			}
 		}
 
 	}
+}
+func shouldExecuteTask(task ScheduledTask) bool {
+	now := time.Now()
+	weekday := now.Weekday().String()
+	if !task.Weekdays[weekday] {
+		return false
+	}
+
+	taskTime, err := time.Parse("15:04", task.Time)
+	if err != nil {
+		log.Println("Error parsing task time:", err)
+		return false
+	}
+
+	return now.Hour() == taskTime.Hour() && now.Minute() == taskTime.Minute()
 }
