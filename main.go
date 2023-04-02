@@ -162,8 +162,8 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			if Keys == "" {
-				log.Println("请在内网中增加掌控板并初始化")
-				if err := conn.WriteMessage(messageType, []byte("请在内网中增加掌控板并初始化")); err != nil {
+				log.Println("请增加掌控板并初始化")
+				if err := conn.WriteMessage(messageType, []byte("请增加掌控板并初始化")); err != nil {
 					log.Println(err)
 					return
 				}
@@ -174,7 +174,7 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(string(p), "|")
 		if len(parts) == 3 {
 
-			//我很愚蠢，git全局设置弄错了
+			//我很愚蠢，git全局设置弄错了，现在ok了
 			// 提取指令、id和时长
 			command := parts[0]
 			durationStr := parts[1]
