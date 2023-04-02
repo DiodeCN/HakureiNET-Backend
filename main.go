@@ -174,6 +174,7 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(string(p), "|")
 		if len(parts) == 3 {
 
+			//我很愚蠢，git全局设置弄错了
 			// 提取指令、id和时长
 			command := parts[0]
 			durationStr := parts[1]
