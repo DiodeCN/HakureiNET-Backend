@@ -32,6 +32,14 @@ var Wendu string
 var Guanggan string
 var zaoyin string
 
+type ScheduledTask struct {
+	Command  string
+	Time     string
+	Days     []string
+	Id       string
+	Weekdays map[string]bool
+}
+
 // 其实这么多好像可以直接简写的（小声
 
 func main() {
@@ -172,6 +180,12 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 		parts := strings.Split(string(p), "|")
+
+		/*
+			if len(parts) == 4 {
+			}
+		*/
+
 		if len(parts) == 3 {
 
 			//我很愚蠢，git全局设置弄错了，现在ok了
