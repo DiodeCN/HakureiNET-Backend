@@ -37,7 +37,7 @@ func main() {
 	// http.Handle("/", http.FileServer(http.Dir("./assests")))
 	//http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./assests")))) // 发布前端
 	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./assests/"))))
-	// 这里挣扎了很久，最终决定拿nginx做静态资源服务器。其实go-bindata-assetfs的解决方案还不错
+	// 这里挣扎了很久，最终决定拿nginx做静态资源服务器。其实go-bindata-assetfs的解决方案也不错
 
 	udpAddr := &net.UDPAddr{
 		IP:   net.IPv4(0, 0, 0, 0),
