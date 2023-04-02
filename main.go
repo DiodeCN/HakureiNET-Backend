@@ -42,6 +42,9 @@ type ScheduledTask struct {
 
 // 其实这么多好像可以直接简写的（小声
 
+//这一部分我是真不知道怎么跑起来，或者说怎么跑不起来，
+//其实我还有个不用计时器的办法
+//只要udp收到消息，就检查现在的分钟数，如果分钟数符合tcp传来的定时要求，就发送指令
 /*
 func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
 	message := string(p)
@@ -58,7 +61,7 @@ func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
 	days := strings.Split(parts[2], ",")
 	id := parts[3]
 
-	// 创建一个新的ScheduledTask
+	// 创建一个新ScheduledTask
 	task := ScheduledTask{
 		Command:  command,
 		Time:     timeStr,
@@ -71,7 +74,7 @@ func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
 		task.Weekdays[day] = true
 	}
 
-	// 计算定时器的延时
+	// 计算定时器延时
 	now := time.Now()
 	hourMinute := strings.Split(timeStr, ":")
 	hour, err := strconv.Atoi(hourMinute[0])
@@ -98,7 +101,7 @@ func handleSpecialMessage(conn *websocket.Conn, messageType int, p []byte) {
 	// 启动一个goroutine来处理ScheduledTask
 	go func(task ScheduledTask, delay time.Duration) {
 		timer := time.NewTimer(delay)
-		ticker := time.NewTicker(24 * time.Hour * 7) // 每7天重置一次定时器
+		ticker := time.NewTicker(24 * time.Hour * 7) // 每7天重置一次
 
 		for {
 			select {
