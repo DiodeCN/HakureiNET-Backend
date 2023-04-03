@@ -32,10 +32,13 @@ var Wendu string
 var Guanggan string
 var zaoyin string
 var SetHour string
+var HourInt int
 
 type ScheduledTask struct {
 	Command       string
 	Time          string
+	Hour          string
+	Minute        string
 	Days          []string
 	Id            string
 	Weekdays      map[string]bool
@@ -80,29 +83,31 @@ var Keys string
 
 func handleUDP(conn *net.UDPConn) {
 	// 在这里添加一个新的 goroutine 来处理计划任务
-	go func() {
-		for {
-			for i, task := range scheduledTasks {
-				if shouldExecuteTask(task) {
-					scheduledTasks[i].ExecutedToday = true
-					mapMutex.Lock()
-					addr, ok := idToAddrMap[task.Id]
-					mapMutex.Unlock()
+	/*
+		go func() {
+			for {
+				for i, task := range scheduledTasks {
+					if shouldExecuteTask(task) {
+						scheduledTasks[i].ExecutedToday = true
+						mapMutex.Lock()
+						addr, ok := idToAddrMap[task.Id]
+						mapMutex.Unlock()
 
-					if ok {
-						var taskErr error // 添加一个新的 error 变量
-						_, taskErr = udpConn.WriteToUDP([]byte(task.Command), addr)
-						if taskErr != nil {
-							log.Println("Error sending UDP message:", taskErr)
+						if ok {
+							var taskErr error // 添加一个新的 error 变量
+							_, taskErr = udpConn.WriteToUDP([]byte(task.Command), addr)
+							if taskErr != nil {
+								log.Println("Error sending UDP message:", taskErr)
+							}
+						} else {
+							log.Println("Id not found in the map")
 						}
-					} else {
-						log.Println("Id not found in the map")
 					}
 				}
+				time.Sleep(1 * time.Second)
 			}
-			time.Sleep(1 * time.Second)
-		}
-	}()
+		}()
+	*/
 	go func() {
 		for {
 			now := time.Now()
@@ -236,12 +241,17 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 				weekdays[day] = true
 			}
 
+			if err != nil {
+				log.Println("Error converting hour to int:", err)
+			}
+
 			task := ScheduledTask{
 				Command:  command,
 				Time:     hour + ":" + minute,
 				Days:     days,
 				Id:       id,
 				Weekdays: weekdays,
+				Minute:   minute,
 			}
 
 			scheduledTasks = append(scheduledTasks, task)
@@ -382,22 +392,4 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
-}
-func shouldExecuteTask(task ScheduledTask) bool {
-	if task.ExecutedToday {
-		return false
-	}
-	now := time.Now()
-	weekday := now.Weekday().String()
-	if !task.Weekdays[weekday] {
-		return false
-	}
-
-	taskTime, err := time.Parse("15:04", task.Time)
-	if err != nil {
-		log.Println("Error parsing task time:", err)
-		return false
-	}
-
-	return now.Hour() == taskTime.Hour() // && now.Minute() == taskTime.Minute()
 }
